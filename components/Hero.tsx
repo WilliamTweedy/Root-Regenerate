@@ -1,29 +1,34 @@
 import React from 'react';
-import { ArrowRight, Leaf, ShieldCheck, Shovel } from 'lucide-react';
+import { ArrowRight, Leaf, ShieldCheck, Shovel, Calendar, Sprout } from 'lucide-react';
 import Button from './Button';
 
 interface HeroProps {
-  onStart: () => void;
+  onStartDiagnosis: () => void;
+  onStartPlanning: () => void;
 }
 
-const Hero: React.FC<HeroProps> = ({ onStart }) => {
+const Hero: React.FC<HeroProps> = ({ onStartDiagnosis, onStartPlanning }) => {
   return (
     <div className="relative overflow-hidden bg-earth-50 py-16 sm:py-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center max-w-3xl mx-auto">
           <h1 className="text-4xl sm:text-6xl font-serif font-bold text-earth-900 mb-6 leading-tight">
-            Heal Your Soil, <br/>
-            <span className="text-leaf-700">Disturb Nothing.</span>
+            Regenerate Your Soil. <br/>
+            <span className="text-leaf-700">Plan Your Harvest.</span>
           </h1>
           <p className="text-lg sm:text-xl text-earth-700 mb-10 leading-relaxed">
-            Following the principles of minimal disturbance gardening. 
-            Identify your soil's needs and receive a tailored, regenerative plan to boost biodiversity and harvest without digging.
+            Follow the principles of minimal disturbance gardening. 
+            Diagnose soil issues or turn your seed packets into a succession planting calendar tailored to your location.
           </p>
           
-          <div className="flex justify-center gap-4 mb-16">
-            <Button onClick={onStart} className="text-lg px-8 py-4 group">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+            <Button onClick={onStartDiagnosis} className="text-lg px-8 py-4 group shadow-lg">
+              <Shovel className="mr-2 w-5 h-5" />
               Diagnose My Soil
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Button>
+            <Button onClick={onStartPlanning} variant="secondary" className="text-lg px-8 py-4 group shadow-md bg-white border-2 border-earth-200 hover:border-leaf-400">
+              <Calendar className="mr-2 w-5 h-5" />
+              Create Planting Plan
             </Button>
           </div>
 
@@ -39,9 +44,9 @@ const Hero: React.FC<HeroProps> = ({ onStart }) => {
               desc="Keep soil covered year-round to protect against erosion and moisture loss."
             />
             <Feature 
-              icon={<Leaf className="w-6 h-6" />}
-              title="Living Roots"
-              desc="Utilize plants to feed soil biology and naturally aerate compacted earth."
+              icon={<Sprout className="w-6 h-6" />}
+              title="Succession Planting"
+              desc="Maximize small spaces by planting new crops immediately after harvesting others."
             />
           </div>
         </div>

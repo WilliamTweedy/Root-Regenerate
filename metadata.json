@@ -1,5 +1,7 @@
 {
+  "requestFramePermissions": [
+    "camera"
+  ],
   "name": "Root & Regenerate",
-  "description": "A soil health diagnostic tool based on Huw Richards' Minimal Disturbance Gardening principles. Diagnose soil issues and get tailored, regenerative solutions.",
-  "requestFramePermissions": []
+  "description": ""
 }

@@ -40,8 +40,63 @@ export interface SoilDiagnosisInputs {
   specificConcern: string;
 }
 
-export interface DiagnosisResult {
-  diagnosis: string;
-  actionPlan: string[];
+export interface RemediationStep {
+  title: string;
+  description: string;
+  priority: 'High' | 'Medium' | 'Low';
+}
+
+export interface RecommendedPlant {
+  name: string;
+  benefit: string; // e.g. "Breaks up clay"
+  type: 'Cover Crop' | 'Vegetable' | 'Flower';
+}
+
+// The structured response for Soil Diagnosis
+export interface DiagnosisResponse {
+  healthTitle: string; // Short summary, e.g. "Compacted Clay Soil"
+  healthScore: number; // 1-10 visual score
+  diagnosisSummary: string;
+  immediateActions: RemediationStep[];
   longTermStrategy: string;
+  recommendedPlants: RecommendedPlant[];
+}
+
+export interface PlantingPlanInputs {
+  location: string;
+  spaceSize: string; // e.g. "10"
+  spaceUnit: 'm²' | 'ft²';
+  seedInputType: 'text' | 'image';
+  seedText: string;
+  seedImages: { base64: string; mimeType: string }[];
+}
+
+// New structured response types
+export interface CropSchedule {
+  cropName: string;
+  sowIndoors: string | null;
+  sowOutdoors: string | null;
+  transplant: string | null;
+  harvest: string;
+  notes: string;
+}
+
+export interface SuccessionTip {
+  originalCrop: string;
+  followUpCrop: string;
+  reason: string;
+}
+
+export interface PlantingPlanResponse {
+  seasonalStrategy: string;
+  schedule: CropSchedule[];
+  successionPlans: SuccessionTip[];
+  spaceMaximizationTip: string;
+}
+
+export interface SavedPlan {
+  id: string;
+  name: string;
+  createdAt: Date;
+  data: PlantingPlanResponse;
 }

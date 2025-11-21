@@ -1,24 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse } from "../types";
 
-// Helper to get the API key from either the build environment or WordPress global settings
-const getApiKey = (): string => {
-  // Check for WordPress injected settings
-  if (typeof window !== 'undefined' && (window as any).ROOT_REGENERATE_SETTINGS?.apiKey) {
-    return (window as any).ROOT_REGENERATE_SETTINGS.apiKey;
-  }
-  // Fallback to local environment variable
-  return process.env.API_KEY || '';
-};
+// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+const apiKey = process.env.API_KEY;
 
-const apiKey = getApiKey();
-const ai = new GoogleGenAI({ apiKey });
+// Initialize AI only if key exists, otherwise methods will throw
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const MODEL_NAME = "gemini-2.5-flash";
 
 export const generateSoilDiagnosis = async (inputs: SoilDiagnosisInputs): Promise<DiagnosisResponse> => {
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please check your settings.");
+  if (!ai || !apiKey) {
+    throw new Error("API Key is missing. Please check your settings or .env file.");
   }
 
   try {
@@ -93,8 +86,8 @@ export const generateSoilDiagnosis = async (inputs: SoilDiagnosisInputs): Promis
 };
 
 export const generatePlantingPlan = async (inputs: PlantingPlanInputs): Promise<PlantingPlanResponse> => {
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please check your settings.");
+  if (!ai || !apiKey) {
+    throw new Error("API Key is missing. Please check your settings or .env file.");
   }
 
   try {

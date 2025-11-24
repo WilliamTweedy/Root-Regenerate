@@ -1,163 +1,159 @@
 import React, { useState, useEffect } from 'react';
-import Header from './components/Header';
-import Hero from './components/Hero';
+import { subscribeToAuth, User, signInWithGoogle } from './services/firebase';
+import { generateSoilDiagnosis, generatePlantingPlan } from './services/geminiService';
+import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse } from './types';
+
+import Dashboard from './components/Dashboard';
+import Navigation from './components/Navigation';
+import Scanner from './components/Scanner';
+import Chat from './components/Chat';
+import Harvest from './components/Harvest';
+import ToolsHub from './components/ToolsHub';
 import Questionnaire from './components/Questionnaire';
 import PlantingWizard from './components/PlantingWizard';
+import Loading from './components/Loading';
 import Results from './components/Results';
 import PlantingPlanResults from './components/PlantingPlanResults';
-import Loading from './components/Loading';
-import SavedPlansList from './components/SavedPlansList';
-import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse, SavedPlan } from './types';
-import { generateSoilDiagnosis, generatePlantingPlan } from './services/geminiService';
-import { auth, onAuthStateChanged, User } from './services/firebase';
 
-type ViewState = 'home' | 'soil-diagnosis' | 'planting-plan' | 'loading' | 'results' | 'saved-plans';
+import { Sprout, ArrowLeft } from 'lucide-react';
 
 function App() {
-  const [view, setView] = useState<ViewState>('home');
-  // Changed from string to DiagnosisResponse | string | null
-  const [diagnosisContent, setDiagnosisContent] = useState<DiagnosisResponse | string | null>(null);
-  const [planContent, setPlanContent] = useState<PlantingPlanResponse | null>(null);
-  const [resultType, setResultType] = useState<'diagnosis' | 'plan'>('diagnosis');
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Tools Tab State
+  const [toolState, setToolState] = useState<'hub' | 'soil' | 'planner'>('hub');
+  const [diagnosisData, setDiagnosisData] = useState<DiagnosisResponse | null>(null);
+  const [planData, setPlanData] = useState<PlantingPlanResponse | null>(null);
+  const [isToolLoading, setIsToolLoading] = useState(false);
 
   useEffect(() => {
-    // Only attempt to listen for auth changes if auth is initialized
-    if (auth) {
-      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-        setUser(currentUser);
-      });
-      return () => unsubscribe();
-    }
+    const unsubscribe = subscribeToAuth((currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Navigation Handlers
-  const goHome = () => {
-    setDiagnosisContent(null);
-    setPlanContent(null);
-    setView('home');
-    window.scrollTo(0, 0);
-  };
-
-  const startDiagnosis = () => {
-    setResultType('diagnosis');
-    setView('soil-diagnosis');
-    window.scrollTo(0, 0);
-  };
-
-  const startPlanning = () => {
-    setResultType('plan');
-    setView('planting-plan');
-    window.scrollTo(0, 0);
-  };
-  
-  const viewSavedPlans = () => {
-    if (!auth) {
-      alert("Please configure Firebase to use this feature.");
-      return;
-    }
-    setView('saved-plans');
-    window.scrollTo(0, 0);
-  };
-
-  const handleSelectSavedPlan = (plan: SavedPlan) => {
-    setPlanContent(plan.data);
-    setResultType('plan');
-    setView('results');
-    window.scrollTo(0, 0);
-  };
-
-  // Logic Handlers
-  const handleSoilDiagnosisComplete = async (inputs: SoilDiagnosisInputs) => {
-    setView('loading');
-    window.scrollTo(0, 0);
-    
+  // --- Soil Tool Handlers ---
+  const handleDiagnosisComplete = async (inputs: SoilDiagnosisInputs) => {
+    setIsToolLoading(true);
     try {
       const result = await generateSoilDiagnosis(inputs);
-      setDiagnosisContent(result);
-      setView('results');
+      setDiagnosisData(result);
     } catch (error) {
       console.error(error);
-      setDiagnosisContent("An error occurred while connecting to the knowledge base. Please try again.");
-      setView('results');
+      alert("Error analyzing soil. Please try again.");
+      setToolState('hub');
+    } finally {
+      setIsToolLoading(false);
     }
   };
 
-  const handlePlantingPlanComplete = async (inputs: PlantingPlanInputs) => {
-    setView('loading');
-    window.scrollTo(0, 0);
-    
+  // --- Planner Tool Handlers ---
+  const handlePlanComplete = async (inputs: PlantingPlanInputs) => {
+    setIsToolLoading(true);
     try {
       const result = await generatePlantingPlan(inputs);
-      setPlanContent(result);
-      setView('results');
+      setPlanData(result);
     } catch (error) {
       console.error(error);
-      // If planting plan fails, we might want to show a simpler error, 
-      // but for now we reuse the diagnosis Content logic or add a separate error state.
-      // To keep it simple, we use diagnosisContent for generic errors if needed, or alert.
-      setDiagnosisContent("An error occurred while analyzing your seeds. Please try again.");
-      setResultType('diagnosis'); 
-      setView('results');
+      alert("Error generating plan. Please try again.");
+      setToolState('hub');
+    } finally {
+      setIsToolLoading(false);
     }
+  };
+
+  // Reset Tool Flow
+  const resetTools = () => {
+    setDiagnosisData(null);
+    setPlanData(null);
+    setToolState('hub');
+    setIsToolLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-sage-50 text-sage-500">
+        <Sprout className="w-12 h-12 animate-bounce" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-sage-50 flex flex-col items-center justify-center px-6">
+        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm text-center">
+          <div className="w-20 h-20 bg-terra-100 rounded-full flex items-center justify-center mx-auto mb-6 text-terra-600">
+             <Sprout className="w-10 h-10" />
+          </div>
+          <h1 className="text-3xl font-serif font-bold text-sage-900 mb-2">Sprout & Scout</h1>
+          <p className="text-sage-600 mb-8">Your social gardening companion.</p>
+          
+          <button 
+            onClick={() => signInWithGoogle()}
+            className="w-full bg-sage-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-sage-900 transition-all flex items-center justify-center gap-2"
+          >
+             Sign In with Google
+          </button>
+          <p className="text-xs text-sage-400 mt-4">
+            Note: Demo mode enabled if no API keys found.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Tools Content Logic
+  const renderToolsContent = () => {
+    if (isToolLoading) return <Loading />;
+    
+    if (diagnosisData) {
+      return <Results diagnosis={diagnosisData} onReset={resetTools} />;
+    }
+    
+    if (planData) {
+      return <PlantingPlanResults plan={planData} onReset={resetTools} user={user} />;
+    }
+
+    if (toolState === 'soil') {
+      return (
+        <div className="relative">
+          <button onClick={resetTools} className="absolute top-4 left-4 text-sage-500 flex items-center gap-1 font-medium z-10">
+             <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <Questionnaire onComplete={handleDiagnosisComplete} />
+        </div>
+      );
+    }
+
+    if (toolState === 'planner') {
+      return (
+        <div className="relative">
+          <button onClick={resetTools} className="absolute top-4 left-4 text-sage-500 flex items-center gap-1 font-medium z-10">
+             <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <PlantingWizard onComplete={handlePlanComplete} />
+        </div>
+      );
+    }
+
+    return <ToolsHub onSelectTool={setToolState} />;
   };
 
   return (
-    <div className="min-h-screen bg-earth-50/30 flex flex-col">
-      <Header onReset={goHome} onViewSaved={viewSavedPlans} user={user} />
-      
-      <main className="flex-grow">
-        {view === 'home' && (
-          <Hero 
-            onStartDiagnosis={startDiagnosis} 
-            onStartPlanning={startPlanning} 
-          />
-        )}
-        
-        {view === 'soil-diagnosis' && (
-          <div className="animate-fade-in">
-            <Questionnaire onComplete={handleSoilDiagnosisComplete} />
-          </div>
-        )}
-
-        {view === 'planting-plan' && (
-          <div className="animate-fade-in">
-            <PlantingWizard onComplete={handlePlantingPlanComplete} />
-          </div>
-        )}
-
-        {view === 'saved-plans' && user && (
-          <div className="animate-fade-in">
-            <SavedPlansList user={user} onSelectPlan={handleSelectSavedPlan} onBack={goHome} />
-          </div>
-        )}
-        
-        {view === 'loading' && <Loading />}
-        
-        {view === 'results' && (
-          <div className="animate-fade-in">
-            {resultType === 'diagnosis' ? (
-              <Results diagnosis={diagnosisContent || "No data"} onReset={goHome} />
-            ) : (
-              planContent ? (
-                <PlantingPlanResults plan={planContent} onReset={goHome} user={user} />
-              ) : (
-                <Results diagnosis={typeof diagnosisContent === 'string' ? diagnosisContent : "Error generating plan."} onReset={goHome} />
-              )
-            )}
-          </div>
-        )}
+    <div className="min-h-screen bg-cream text-sage-900 font-sans selection:bg-terra-200">
+      <main className="min-h-screen">
+        {activeTab === 'dashboard' && <Dashboard user={user} onNavigate={setActiveTab} />}
+        {activeTab === 'scan' && <Scanner user={user} onComplete={() => setActiveTab('dashboard')} />}
+        {activeTab === 'tools' && renderToolsContent()}
+        {activeTab === 'chat' && <Chat user={user} />}
+        {activeTab === 'harvest' && <Harvest user={user} />}
       </main>
-
-      <footer className="bg-earth-800 text-earth-200 py-8 text-center">
-        <div className="max-w-5xl mx-auto px-4">
-          <p className="mb-2 font-serif text-lg">Root & Regenerate</p>
-          <p className="text-sm opacity-70">Inspired by minimal disturbance gardening principles.</p>
-          <p className="text-xs mt-4 opacity-50">
-            This tool uses AI to generate advice. Always observe your local conditions.
-          </p>
-        </div>
-      </footer>
+      
+      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }

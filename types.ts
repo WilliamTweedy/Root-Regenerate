@@ -1,102 +1,168 @@
+
+export interface UserProfile {
+  uid: string;
+  displayName: string | null;
+  photoURL: string | null;
+  gardenerLevel: 'Novice' | 'Apprentice' | 'Green Thumb' | 'Master Gardener';
+}
+
+export interface Plant {
+  id: string;
+  name: string; // e.g., "Tomato - Money Maker"
+  type: string; // Vegetable, Flower, Herb
+  plantedDate: Date;
+  imageUrl?: string;
+  notes?: string;
+  season: 'Spring' | 'Summer' | 'Autumn' | 'Winter';
+  estimatedHarvestDate?: Date;
+  sowStatus?: string;
+  isPlanted: boolean; // New field for tracking status
+  // Extended fields for detailed cards
+  sowIndoors?: string;
+  sowOutdoors?: string;
+  transplant?: string;
+  harvest?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  userId: string;
+  userName: string;
+  userLevel: string;
+  timestamp: Date; // Using JS Date for simpler UI handling
+}
+
+export interface HarvestLog {
+  id: string;
+  cropName: string;
+  weightKg: number;
+  rating: 1 | 2 | 3 | 4 | 5;
+  date: Date;
+  imageUrl?: string;
+}
+
+export interface WeatherData {
+  temp: number;
+  condition: string;
+  icon: string;
+  isFrostWarning: boolean;
+}
+
+// Scanner Types
+export interface PlantIdentificationResult {
+  name: string;
+  type: string;
+  season: 'Spring' | 'Summer' | 'Autumn' | 'Winter';
+  confidence: number;
+  notes: string;
+  // Added detailed schedule fields
+  sowIndoors: string;
+  sowOutdoors: string;
+  transplant: string;
+  harvest: string;
+}
+
+// Soil Diagnosis Types
+
 export enum SoilTexture {
-  Clay = 'Clay (Sticky, holds shape)',
-  Sand = 'Sandy (Gritty, falls apart)',
-  Silt = 'Silt (Smooth, floury)',
-  Loam = 'Loam (Balanced, crumbly)',
-  Unknown = 'Not sure'
+  Sandy = "Sandy (Gritty)",
+  Silty = "Silty (Smooth)",
+  Clay = "Clay (Sticky)",
+  Loam = "Loam (Balanced)",
+  Chalky = "Chalky (Stony)"
 }
 
 export enum CompactionLevel {
-  Hard = 'Hard / Impenetrable',
-  Firm = 'Firm but workable',
-  Soft = 'Soft / Fluffy'
+  Loose = "Loose (Easy to dig)",
+  Moderate = "Moderate (Firm but workable)",
+  Hard = "Hard (Needs force)",
+  RockHard = "Rock Hard (Impenetrable)"
 }
 
 export enum DrainageStatus {
-  Poor = 'Puddles remain for hours',
-  Fast = 'Drains almost instantly',
-  Good = 'Drains steadily'
+  Fast = "Fast (Drains instantly)",
+  Good = "Good (Drains in minutes)",
+  Slow = "Slow (Puddles for hours)",
+  Waterlogged = "Waterlogged (Days)"
 }
 
 export enum BiodiversityLevel {
-  None = 'No visible life',
-  Low = 'Some ants or small bugs',
-  High = 'Teeming with worms and insects'
+  None = "None Visible",
+  Low = "Low (Few worms/bugs)",
+  Moderate = "Moderate",
+  High = "High (Teeming with life)"
 }
 
 export enum SurfaceCondition {
-  Bare = 'Bare soil (exposed)',
-  Weeds = 'Overgrown with weeds',
-  Mulch = 'Covered with mulch/compost',
-  Grass = 'Lawn / Grass'
+  Bare = "Bare Soil",
+  Mulched = "Mulched",
+  Weeds = "Weeds/Grass",
+  Crops = "Existing Crops"
 }
 
 export interface SoilDiagnosisInputs {
-  texture: SoilTexture | null;
-  compaction: CompactionLevel | null;
-  drainage: DrainageStatus | null;
-  biodiversity: BiodiversityLevel | null;
-  surface: SurfaceCondition | null;
+  texture: string | null;
+  compaction: string | null;
+  drainage: string | null;
+  biodiversity: string | null;
+  surface: string | null;
   specificConcern: string;
 }
 
-export interface RemediationStep {
-  title: string;
-  description: string;
-  priority: 'High' | 'Medium' | 'Low';
-}
-
-export interface RecommendedPlant {
-  name: string;
-  benefit: string; // e.g. "Breaks up clay"
-  type: 'Cover Crop' | 'Vegetable' | 'Flower';
-}
-
-// The structured response for Soil Diagnosis
 export interface DiagnosisResponse {
-  healthTitle: string; // Short summary, e.g. "Compacted Clay Soil"
-  healthScore: number; // 1-10 visual score
+  healthTitle: string;
+  healthScore: number;
   diagnosisSummary: string;
-  immediateActions: RemediationStep[];
+  immediateActions: {
+    title: string;
+    description: string;
+    priority: "High" | "Medium" | "Low";
+  }[];
   longTermStrategy: string;
-  recommendedPlants: RecommendedPlant[];
+  recommendedPlants: {
+    name: string;
+    benefit: string;
+    type: "Cover Crop" | "Vegetable" | "Flower";
+  }[];
 }
+
+// Planting Plan Types
 
 export interface PlantingPlanInputs {
   location: string;
-  spaceSize: string; // e.g. "10"
+  spaceSize: string;
   spaceUnit: 'm²' | 'ft²';
   seedInputType: 'text' | 'image';
   seedText: string;
-  seedImages: { base64: string; mimeType: string }[];
-}
-
-// New structured response types
-export interface CropSchedule {
-  cropName: string;
-  sowIndoors: string | null;
-  sowOutdoors: string | null;
-  transplant: string | null;
-  harvest: string;
-  notes: string;
-}
-
-export interface SuccessionTip {
-  originalCrop: string;
-  followUpCrop: string;
-  reason: string;
+  seedImages: {
+    base64: string;
+    mimeType: string;
+  }[];
 }
 
 export interface PlantingPlanResponse {
   seasonalStrategy: string;
-  schedule: CropSchedule[];
-  successionPlans: SuccessionTip[];
+  schedule: {
+    cropName: string;
+    sowIndoors: string;
+    sowOutdoors: string;
+    transplant: string;
+    harvest: string;
+    notes: string;
+  }[];
+  successionPlans: {
+    originalCrop: string;
+    followUpCrop: string;
+    reason: string;
+  }[];
   spaceMaximizationTip: string;
 }
 
 export interface SavedPlan {
   id: string;
+  userId: string;
   name: string;
-  createdAt: Date;
   data: PlantingPlanResponse;
+  createdAt: Date;
 }

@@ -1,7 +1,8 @@
 {
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ],
-  "name": "Root & Regenerate",
-  "description": ""
+  "name": "Sprout & Scout",
+  "description": "Social Gardening Companion"
 }

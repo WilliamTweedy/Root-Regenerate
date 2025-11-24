@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { User } from 'firebase/auth';
-import { getUserPlans } from '../services/firebase';
+import { User, getUserPlans } from '../services/firebase';
 import { SavedPlan } from '../types';
 import Button from './Button';
 import { Calendar, ArrowRight, Clock } from 'lucide-react';

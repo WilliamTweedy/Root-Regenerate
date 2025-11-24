@@ -1,7 +1,6 @@
 import React from 'react';
 import { Sprout, User as UserIcon, LogOut, LayoutDashboard } from 'lucide-react';
-import { User } from 'firebase/auth';
-import { signInWithGoogle, logout } from '../services/firebase';
+import { User, signInWithGoogle, logout } from '../services/firebase';
 import Button from './Button';
 
 interface HeaderProps {
@@ -32,10 +31,10 @@ const Header: React.FC<HeaderProps> = ({ onReset, onViewSaved, user }) => {
               <Sprout className="w-6 h-6 text-white" />
             </div>
             <span className="font-serif text-xl font-bold text-earth-900 tracking-tight hidden sm:inline">
-              Root & Regenerate
+              Sprout & Scout
             </span>
              <span className="font-serif text-xl font-bold text-earth-900 tracking-tight sm:hidden">
-              R&R
+              S&S
             </span>
           </div>
 

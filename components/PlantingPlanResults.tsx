@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { PlantingPlanResponse } from '../types';
 import Button from './Button';
-import { Download, Share2, Calendar, Sprout, Sun, ArrowRight, Layers, Save, CheckCircle, Settings, Eye, EyeOff } from 'lucide-react';
-import { User } from 'firebase/auth';
-import { savePlantingPlanToDb, signInWithGoogle } from '../services/firebase';
+import { Calendar, ArrowRight, Layers, Save, CheckCircle, Settings, Eye, EyeOff, Sprout, PlusCircle, Plus } from 'lucide-react';
+import { User, savePlantingPlanToDb, signInWithGoogle, addPlant, getPlants } from '../services/firebase';
 
 interface PlantingPlanResultsProps {
   plan: PlantingPlanResponse;
@@ -19,12 +19,18 @@ interface ViewSettings {
   showStrategy: boolean;
 }
 
+const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
 const PlantingPlanResults: React.FC<PlantingPlanResultsProps> = ({ plan, onReset, user }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [planName, setPlanName] = useState(`My Garden Plan - ${new Date().toLocaleDateString()}`);
   const [showNameInput, setShowNameInput] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  
+  const [isAddingToGarden, setIsAddingToGarden] = useState(false);
+  // Track which plants are in inventory by name (normalized)
+  const [inventorySet, setInventorySet] = useState<Set<string>>(new Set());
 
   // Default View Settings
   const [view, setView] = useState<ViewSettings>({
@@ -34,6 +40,23 @@ const PlantingPlanResults: React.FC<PlantingPlanResultsProps> = ({ plan, onReset
     showSuccession: true,
     showStrategy: true,
   });
+
+  // Load existing inventory to check for duplicates
+  useEffect(() => {
+    const loadInventory = async () => {
+      if (user) {
+        try {
+          const plants = await getPlants(user.uid);
+          // Strict normalization
+          const names = new Set(plants.map(p => normalizeName(p.name)));
+          setInventorySet(names);
+        } catch (error) {
+          console.error("Failed to load inventory for duplicate check", error);
+        }
+      }
+    };
+    loadInventory();
+  }, [user]);
 
   const toggleView = (key: keyof ViewSettings) => {
     setView(prev => ({ ...prev, [key]: !prev[key] }));
@@ -66,8 +89,97 @@ const PlantingPlanResults: React.FC<PlantingPlanResultsProps> = ({ plan, onReset
     }
   };
 
+  // Helper to determine season
+  const getSeason = (harvestText: string) => {
+     const h = harvestText.toLowerCase();
+     if (h.includes('jul') || h.includes('aug') || h.includes('jun')) return 'Summer';
+     if (h.includes('sep') || h.includes('oct') || h.includes('nov')) return 'Autumn';
+     if (h.includes('dec') || h.includes('jan') || h.includes('feb')) return 'Winter';
+     return 'Spring';
+  };
+
+  const handleAddSingle = async (crop: any) => {
+    if (!user) return;
+    if (inventorySet.has(normalizeName(crop.cropName))) return;
+
+    try {
+      await addPlant(user.uid, {
+        name: crop.cropName,
+        type: 'Vegetable',
+        season: getSeason(crop.harvest) as any,
+        plantedDate: new Date(),
+        notes: `Added from Plan: ${crop.notes}`,
+        isPlanted: false,
+        // Save detailed schedule info
+        sowIndoors: crop.sowIndoors,
+        sowOutdoors: crop.sowOutdoors,
+        transplant: crop.transplant,
+        harvest: crop.harvest
+      });
+      
+      // Update local state immediately
+      setInventorySet(prev => {
+        const newSet = new Set(prev);
+        newSet.add(normalizeName(crop.cropName));
+        return newSet;
+      });
+    } catch (error) {
+      console.error("Error adding plant", error);
+      alert(`Failed to add ${crop.cropName}`);
+    }
+  };
+
+  const handleAddToGarden = async () => {
+    if (!user || !plan.schedule) return;
+    setIsAddingToGarden(true);
+    try {
+      // Filter out existing using robust normalization
+      const toAdd = plan.schedule.filter(crop => !inventorySet.has(normalizeName(crop.cropName)));
+      
+      if (toAdd.length === 0) {
+        alert("All crops in this plan are already in your inventory!");
+        setIsAddingToGarden(false);
+        return;
+      }
+
+      const promises = toAdd.map(crop => {
+        return addPlant(user.uid, {
+          name: crop.cropName,
+          type: 'Vegetable', 
+          season: getSeason(crop.harvest) as any,
+          plantedDate: new Date(),
+          notes: `Added from Plan: ${crop.notes}`,
+          isPlanted: false,
+          sowIndoors: crop.sowIndoors,
+          sowOutdoors: crop.sowOutdoors,
+          transplant: crop.transplant,
+          harvest: crop.harvest
+        });
+      });
+
+      await Promise.all(promises);
+      
+      // Update local set
+      setInventorySet(prev => {
+        const newSet = new Set(prev);
+        toAdd.forEach(c => newSet.add(normalizeName(c.cropName)));
+        return newSet;
+      });
+      
+      alert(`Added ${toAdd.length} new crops to your inventory.`);
+    } catch (error) {
+      console.error("Error adding plants", error);
+      alert("Failed to add plants to inventory.");
+    } finally {
+      setIsAddingToGarden(false);
+    }
+  };
+
+  // Check if all displayed items are added
+  const allAdded = plan.schedule && plan.schedule.every(c => inventorySet.has(normalizeName(c.cropName)));
+
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+    <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 pb-24">
       
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -153,25 +265,45 @@ const PlantingPlanResults: React.FC<PlantingPlanResultsProps> = ({ plan, onReset
 
       {/* Main Schedule */}
       <div className="space-y-6 mb-12">
-         <h3 className="text-2xl font-serif font-bold text-earth-900 mb-4">Sowing Schedule</h3>
+         <div className="flex justify-between items-center">
+            <h3 className="text-2xl font-serif font-bold text-earth-900">Sowing Schedule</h3>
+            
+            {user && plan.schedule?.length > 0 && (
+              <Button 
+                onClick={handleAddToGarden} 
+                disabled={isAddingToGarden || allAdded}
+                variant={allAdded ? "outline" : "secondary"}
+                className="text-xs px-3 py-2 h-auto"
+              >
+                {allAdded ? (
+                  <><CheckCircle className="w-4 h-4 mr-2" /> All Added</>
+                ) : (
+                  <><PlusCircle className="w-4 h-4 mr-2" /> Add Missing to Inventory</>
+                )}
+              </Button>
+            )}
+         </div>
          
          {plan.schedule && plan.schedule.length > 0 ? (
            <div className="grid gap-4">
-             {plan.schedule.map((crop, index) => (
-               <div key={index} className="bg-white rounded-xl border border-earth-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                  <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+             {plan.schedule.map((crop, index) => {
+               const isAdded = inventorySet.has(normalizeName(crop.cropName));
+               return (
+               <div key={index} className="bg-white rounded-xl border border-earth-200 shadow-sm overflow-hidden hover:shadow-md relative transition-all">
+                  
+                  <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                      
-                     {/* Title */}
-                     <div className="sm:w-1/4">
+                     {/* Title Section */}
+                     <div className="w-full sm:w-1/4">
                         <h4 className="font-bold text-lg text-earth-900 flex items-center gap-2">
-                           <Sprout className="w-5 h-5 text-leaf-600" />
+                           <Sprout className="w-5 h-5 text-leaf-600 flex-shrink-0" />
                            {crop.cropName}
                         </h4>
-                        <p className="text-sm text-earth-500 mt-1 italic">{crop.notes}</p>
+                        <p className="text-sm text-earth-500 mt-1 italic leading-tight">{crop.notes}</p>
                      </div>
 
                      {/* Timeline Pills */}
-                     <div className="flex flex-wrap gap-2 sm:flex-1 justify-start sm:justify-center">
+                     <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:flex-1 items-center">
                         {view.showIndoor && crop.sowIndoors && crop.sowIndoors !== 'N/A' && (
                            <Badge label="Sow Indoors" value={crop.sowIndoors} color="bg-blue-50 text-blue-700 border-blue-200" />
                         )}
@@ -183,19 +315,39 @@ const PlantingPlanResults: React.FC<PlantingPlanResultsProps> = ({ plan, onReset
                         )}
                      </div>
 
-                     {/* Harvest */}
-                     <div className="sm:w-1/5 text-right border-l border-earth-100 pl-4 hidden sm:block">
-                        <span className="text-xs font-bold text-earth-400 uppercase tracking-wider">Harvest</span>
-                        <p className="font-medium text-leaf-700">{crop.harvest}</p>
+                     {/* Right Side: Harvest & Action */}
+                     <div className="flex w-full sm:w-auto justify-between sm:justify-end items-center gap-4 border-t sm:border-t-0 border-earth-100 pt-3 sm:pt-0">
+                        {/* Harvest Info */}
+                        <div className="text-left sm:text-right">
+                            <span className="text-[10px] font-bold text-earth-400 uppercase tracking-wider block">Harvest</span>
+                            <span className="font-medium text-leaf-700 text-sm">{crop.harvest}</span>
+                        </div>
+
+                        {/* Individual Add Button */}
+                        {user && (
+                          <div className="flex-shrink-0">
+                            {isAdded ? (
+                               <div className="flex items-center gap-1 text-leaf-600 bg-leaf-50 px-3 py-1.5 rounded-full border border-leaf-100">
+                                  <CheckCircle className="w-4 h-4" />
+                                  <span className="text-xs font-bold">In Garden</span>
+                               </div>
+                            ) : (
+                               <button 
+                                 onClick={() => handleAddSingle(crop)}
+                                 className="flex items-center gap-1 bg-terra-50 text-terra-700 hover:bg-terra-100 hover:text-terra-800 px-3 py-1.5 rounded-full border border-terra-200 transition-colors"
+                               >
+                                  <Plus className="w-4 h-4" />
+                                  <span className="text-xs font-bold">Add</span>
+                               </button>
+                            )}
+                          </div>
+                        )}
                      </div>
-                     {/* Mobile Harvest */}
-                     <div className="sm:hidden pt-3 border-t border-earth-100 flex justify-between items-center">
-                        <span className="text-sm text-earth-500">Harvest:</span>
-                        <span className="font-medium text-leaf-700">{crop.harvest}</span>
-                     </div>
+
                   </div>
                </div>
-             ))}
+               );
+             })}
            </div>
          ) : (
            <div className="bg-white p-8 rounded-xl text-center border border-earth-200 border-dashed">

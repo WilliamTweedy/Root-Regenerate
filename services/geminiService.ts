@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse } from "../types";
+import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse, PlantIdentificationResult } from "../types";
 
 // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
 const apiKey = process.env.API_KEY;
@@ -8,6 +9,83 @@ const apiKey = process.env.API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const MODEL_NAME = "gemini-2.5-flash";
+
+export const identifyPlants = async (images: { base64: string, mimeType: string }[]): Promise<PlantIdentificationResult[]> => {
+  if (!ai || !apiKey) {
+    throw new Error("API Key is missing. Please check your settings or .env file.");
+  }
+
+  try {
+    const parts: any[] = [];
+
+    // Add all images to the prompt
+    images.forEach(img => {
+      parts.push({
+        inlineData: {
+          mimeType: img.mimeType,
+          data: img.base64
+        }
+      });
+    });
+
+    const promptText = `
+      Analyze these images. They contain one or more seed packets or plants.
+      Identify EVERY distinct plant species visible.
+      
+      For each plant found, return a JSON object with:
+      - name: The common name and variety if visible (e.g. "Tomato - Roma").
+      - type: "Vegetable", "Herb", "Flower", or "Fruit".
+      - season: Best growing season ("Spring", "Summer", "Autumn", or "Winter").
+      - notes: A very short tip (max 10 words).
+      - sowIndoors: The months to sow indoors (e.g., "Feb-Mar") or "N/A".
+      - sowOutdoors: The months to sow outdoors (e.g., "Apr-Jun") or "N/A".
+      - transplant: The months to transplant (e.g., "May-Jun") or "N/A".
+      - harvest: The months to harvest (e.g., "Jul-Sep").
+      
+      Return strictly a JSON array of these objects.
+    `;
+
+    parts.push({ text: promptText });
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: { parts },
+      config: {
+        temperature: 0.4, // Lower temperature for more factual extraction
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              type: { type: Type.STRING, enum: ["Vegetable", "Herb", "Flower", "Fruit"] },
+              season: { type: Type.STRING, enum: ["Spring", "Summer", "Autumn", "Winter"] },
+              notes: { type: Type.STRING },
+              sowIndoors: { type: Type.STRING },
+              sowOutdoors: { type: Type.STRING },
+              transplant: { type: Type.STRING },
+              harvest: { type: Type.STRING }
+            },
+            required: ["name", "type", "season", "sowIndoors", "sowOutdoors", "transplant", "harvest"]
+          }
+        }
+      }
+    });
+
+    let text = response.text;
+    if (!text) throw new Error("No response from AI");
+    
+    // Clean up potential Markdown code blocks
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(text) as PlantIdentificationResult[];
+
+  } catch (error) {
+    console.error("Error identifying plants:", error);
+    throw new Error("Failed to identify plants from images.");
+  }
+};
 
 export const generateSoilDiagnosis = async (inputs: SoilDiagnosisInputs): Promise<DiagnosisResponse> => {
   if (!ai || !apiKey) {
@@ -74,7 +152,6 @@ export const generateSoilDiagnosis = async (inputs: SoilDiagnosisInputs): Promis
     let text = response.text;
     if (!text) throw new Error("No response from AI");
     
-    // Clean up potential Markdown code blocks
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
     return JSON.parse(text) as DiagnosisResponse;
@@ -93,7 +170,6 @@ export const generatePlantingPlan = async (inputs: PlantingPlanInputs): Promise<
   try {
     const parts: any[] = [];
 
-    // Add Images if available
     if (inputs.seedInputType === 'image' && inputs.seedImages.length > 0) {
        inputs.seedImages.forEach(img => {
          parts.push({
@@ -108,23 +184,15 @@ export const generatePlantingPlan = async (inputs: PlantingPlanInputs): Promise<
       parts.push({ text: `I have the following seeds: ${inputs.seedText}` });
     }
 
-    // Construct the main prompt
     const promptText = `
-      You are an expert market gardener specializing in **Succession Planting** and **Intercropping** (inspired by Huw Richards and Charles Dowding).
+      You are an expert market gardener specializing in **Succession Planting** and **Intercropping**.
       
       User Parameters:
-      - **Location:** ${inputs.location} (Use this to determine frost dates and growing season).
+      - **Location:** ${inputs.location}
       - **Growing Space:** ${inputs.spaceSize} ${inputs.spaceUnit}.
       
-      Based on the seeds provided (read from the images or text above), create a comprehensive planting plan.
-      
-      Return the result in strictly valid JSON format matching the schema provided.
-      
-      Fields:
-      - seasonalStrategy: A brief, encouraging summary of the season ahead for this specific space.
-      - schedule: An array of crops with specific dates for this location.
-      - successionPlans: 2-3 specific suggestions for what to plant after a harvest.
-      - spaceMaximizationTip: One killer tip for this space size.
+      Based on the seeds provided, create a comprehensive planting plan.
+      Return valid JSON.
     `;
 
     parts.push({ text: promptText });
@@ -145,11 +213,11 @@ export const generatePlantingPlan = async (inputs: PlantingPlanInputs): Promise<
                 type: Type.OBJECT,
                 properties: {
                   cropName: { type: Type.STRING },
-                  sowIndoors: { type: Type.STRING, description: "Date range or 'N/A'" },
-                  sowOutdoors: { type: Type.STRING, description: "Date range or 'N/A'" },
-                  transplant: { type: Type.STRING, description: "Date range or 'N/A'" },
-                  harvest: { type: Type.STRING, description: "Estimated harvest month/time" },
-                  notes: { type: Type.STRING, description: "Spacing or interplanting tip" }
+                  sowIndoors: { type: Type.STRING },
+                  sowOutdoors: { type: Type.STRING },
+                  transplant: { type: Type.STRING },
+                  harvest: { type: Type.STRING },
+                  notes: { type: Type.STRING }
                 },
                 required: ["cropName", "harvest", "notes"]
               }
@@ -173,8 +241,6 @@ export const generatePlantingPlan = async (inputs: PlantingPlanInputs): Promise<
 
     let text = response.text;
     if (!text) throw new Error("No response from AI");
-    
-    // Clean up potential Markdown code blocks that Gemini sometimes adds despite responseMimeType
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
     return JSON.parse(text) as PlantingPlanResponse;

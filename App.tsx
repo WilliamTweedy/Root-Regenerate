@@ -89,7 +89,7 @@ function App() {
           <div className="w-20 h-20 bg-terra-100 rounded-full flex items-center justify-center mx-auto mb-6 text-terra-600">
              <Sprout className="w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-serif font-bold text-sage-900 mb-2">Sprout & Scout</h1>
+          <h1 className="text-3xl font-serif font-bold text-sage-900 mb-2">Root & Regenerate</h1>
           <p className="text-sage-600 mb-8">Your social gardening companion.</p>
           
           <button 

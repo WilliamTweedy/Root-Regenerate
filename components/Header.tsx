@@ -31,10 +31,10 @@ const Header: React.FC<HeaderProps> = ({ onReset, onViewSaved, user }) => {
               <Sprout className="w-6 h-6 text-white" />
             </div>
             <span className="font-serif text-xl font-bold text-earth-900 tracking-tight hidden sm:inline">
-              Sprout & Scout
+              Root & Regenerate
             </span>
              <span className="font-serif text-xl font-bold text-earth-900 tracking-tight sm:hidden">
-              S&S
+              R&R
             </span>
           </div>
 

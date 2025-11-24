@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { User, addPlant, getPlants } from '../services/firebase';
 import { identifyPlants } from '../services/geminiService';
 import { PlantIdentificationResult } from '../types';
-import { Camera, Loader2, X, Plus, UploadCloud, Check, AlertCircle } from 'lucide-react';
+import { Camera, Loader2, X, Plus, UploadCloud, Check, AlertCircle, Calendar } from 'lucide-react';
 import Button from './Button';
 
 interface ScannerProps {
@@ -118,10 +118,10 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
       plantedDate: new Date(),
       notes: plant.notes,
       isPlanted: false, // Default to seed inventory
-      sowIndoors: plant.sowIndoors,
-      sowOutdoors: plant.sowOutdoors,
-      transplant: plant.transplant,
-      harvest: plant.harvest
+      sowIndoors: plant.sowIndoors || "N/A",
+      sowOutdoors: plant.sowOutdoors || "N/A",
+      transplant: plant.transplant || "N/A",
+      harvest: plant.harvest || "Unknown"
     }));
 
     await Promise.all(promises);
@@ -144,14 +144,14 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
          <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-serif font-bold text-sage-900">Scan Results</h2>
-              <p className="text-sm text-sage-500">Select seeds to add to inventory.</p>
+              <p className="text-sm text-sage-500">Review estimated schedules & add.</p>
             </div>
             <button onClick={() => setResults([])} className="text-sage-500 text-sm hover:text-sage-800 font-medium bg-sage-50 px-3 py-1 rounded-lg">
                Rescan
             </button>
          </div>
 
-         <div className="flex-grow overflow-y-auto space-y-3 mb-4">
+         <div className="flex-grow overflow-y-auto space-y-4 mb-4">
             {results.map((plant, idx) => (
                <div 
                   key={plant.uiId} 
@@ -161,7 +161,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
                        : 'bg-sage-50 border-sage-200 opacity-75'
                   }`}
                >
-                  <div className="flex gap-3">
+                  <div className="flex gap-4">
                      {/* Checkbox */}
                      <button 
                        onClick={() => toggleSelection(idx)}
@@ -175,7 +175,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
                      <div className="flex-grow">
                         <div className="flex justify-between items-start mb-2">
                            <div>
-                              <h3 className="font-bold text-sage-900">{plant.name}</h3>
+                              <h3 className="font-bold text-sage-900 text-lg">{plant.name}</h3>
                               <p className="text-xs text-sage-500 italic">{plant.notes}</p>
                            </div>
                            {plant.isDuplicate && (
@@ -185,7 +185,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
                            )}
                         </div>
                         
-                        <div className="flex flex-wrap gap-2 mt-3">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mt-3">
                            {plant.sowIndoors && plant.sowIndoors !== 'N/A' && (
                               <Badge label="Indoor" value={plant.sowIndoors} color="bg-blue-50 text-blue-700 border-blue-200" />
                            )}
@@ -206,7 +206,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
          <div className="mb-24 pt-4 border-t border-sage-100 bg-white/90 backdrop-blur-sm sticky bottom-0">
             <Button onClick={handleAddSelected} fullWidth disabled={selectedCount === 0}>
                <Plus className="w-5 h-5 mr-2" />
-               {selectedCount === 0 ? 'Select Seeds' : `Add ${selectedCount} Seeds`}
+               {selectedCount === 0 ? 'Select Seeds' : `Add ${selectedCount} to Garden`}
             </Button>
          </div>
       </div>
@@ -217,7 +217,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
   return (
     <div className="pb-24 px-4 pt-6 max-w-md mx-auto flex flex-col h-screen">
       <h2 className="text-2xl font-serif font-bold text-sage-900 mb-2">Seed Scanner</h2>
-      <p className="text-sage-600 mb-6">Take photos of your seed packets to auto-generate a schedule.</p>
+      <p className="text-sage-600 mb-6">Take photos of seed packets. The AI will extract or estimate planting schedules.</p>
 
       {/* Image Grid */}
       <div className="flex-grow">

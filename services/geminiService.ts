@@ -32,15 +32,17 @@ export const identifyPlants = async (images: { base64: string, mimeType: string 
       Analyze these images. They contain one or more seed packets or plants.
       Identify EVERY distinct plant species visible.
       
-      For each plant found, return a JSON object with:
+      For each plant found, return a JSON object with the following fields.
+      IMPORTANT: If exact dates are not visible on the packet, you MUST ESTIMATE them based on general gardening knowledge for a Temperate Northern Hemisphere climate. Do not return empty strings.
+      
       - name: The common name and variety if visible (e.g. "Tomato - Roma").
       - type: "Vegetable", "Herb", "Flower", or "Fruit".
       - season: Best growing season ("Spring", "Summer", "Autumn", or "Winter").
       - notes: A very short tip (max 10 words).
-      - sowIndoors: The months to sow indoors (e.g., "Feb-Mar") or "N/A".
-      - sowOutdoors: The months to sow outdoors (e.g., "Apr-Jun") or "N/A".
-      - transplant: The months to transplant (e.g., "May-Jun") or "N/A".
-      - harvest: The months to harvest (e.g., "Jul-Sep").
+      - sowIndoors: The months to sow indoors (e.g., "Feb-Mar"). If strictly outdoor, return "N/A". ESTIMATE if not found.
+      - sowOutdoors: The months to sow outdoors (e.g., "Apr-Jun"). If strictly indoor, return "N/A". ESTIMATE if not found.
+      - transplant: The months to transplant (e.g., "May-Jun"). If direct sow only, return "N/A". ESTIMATE if not found.
+      - harvest: The months to harvest (e.g., "Jul-Sep"). ESTIMATE if not found.
       
       Return strictly a JSON array of these objects.
     `;

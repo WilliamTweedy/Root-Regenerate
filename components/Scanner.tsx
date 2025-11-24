@@ -140,7 +140,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
     const selectedCount = results.filter(r => r.selected).length;
 
     return (
-      <div className="pb-24 px-4 pt-6 max-w-2xl mx-auto flex flex-col h-screen">
+      <div className="px-4 pt-6 max-w-2xl mx-auto flex flex-col h-[calc(100vh-5rem)]">
          <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-serif font-bold text-sage-900">Scan Results</h2>
@@ -203,7 +203,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
             ))}
          </div>
 
-         <div className="mb-24 pt-4 border-t border-sage-100 bg-white/90 backdrop-blur-sm sticky bottom-0">
+         <div className="pt-4 pb-2 border-t border-sage-100 bg-white/90 backdrop-blur-sm z-10">
             <Button onClick={handleAddSelected} fullWidth disabled={selectedCount === 0}>
                <Plus className="w-5 h-5 mr-2" />
                {selectedCount === 0 ? 'Select Seeds' : `Add ${selectedCount} to Garden`}
@@ -215,12 +215,12 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
 
   // -- RENDER: SCANNER VIEW --
   return (
-    <div className="pb-24 px-4 pt-6 max-w-md mx-auto flex flex-col h-screen">
+    <div className="px-4 pt-6 max-w-md mx-auto flex flex-col h-[calc(100vh-5rem)]">
       <h2 className="text-2xl font-serif font-bold text-sage-900 mb-2">Seed Scanner</h2>
       <p className="text-sage-600 mb-6">Take photos of seed packets. The AI will extract or estimate planting schedules.</p>
 
       {/* Image Grid */}
-      <div className="flex-grow">
+      <div className="flex-grow overflow-y-auto">
         <div className="grid grid-cols-2 gap-3 mb-4">
            {images.map((img, idx) => (
               <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-sage-200 shadow-sm group">
@@ -271,7 +271,7 @@ const Scanner: React.FC<ScannerProps> = ({ user, onComplete }) => {
 
       {/* Analyze Action */}
       {images.length > 0 && (
-         <div className="mb-24 animate-slide-up">
+         <div className="pt-4 pb-2 animate-slide-up z-10 bg-cream/90 backdrop-blur-sm">
             <Button onClick={handleAnalyze} fullWidth disabled={isAnalyzing}>
                {isAnalyzing ? (
                   <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Analyzing...</>

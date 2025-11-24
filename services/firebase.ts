@@ -1,6 +1,9 @@
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { Plant, ChatMessage, HarvestLog, PlantingPlanResponse, SavedPlan } from "../types";
 
-// Define User interface locally since we are removing firebase dependency
+// Define User interface
 export interface User {
   uid: string;
   displayName: string | null;
@@ -9,52 +12,32 @@ export interface User {
   emailVerified: boolean;
 }
 
-export const auth = null;
-export const db = null;
+// --- Configuration ---
+// These are pulled from process.env via vite.config.ts
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
+};
 
-// --- Helper for ID Generation ---
+// Initialize Firebase only if config is present
+const app = firebaseConfig.apiKey ? initializeApp(firebaseConfig) : null;
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+
+// --- Helper for ID Generation (Fallback) ---
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
-// --- Helper for Demo Mode Storage ---
-
+// --- Helper for Demo Mode Storage (Fallback) ---
 const safeSetItem = (key: string, data: any) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e: any) {
     if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
-      console.warn("LocalStorage quota exceeded. Attempting to strip image data...");
-      
-      // Helper to strip images from object
-      const stripImages = (obj: any): any => {
-        if (Array.isArray(obj)) {
-          return obj.map(stripImages);
-        } else if (typeof obj === 'object' && obj !== null) {
-          const newObj: any = {};
-          for (const k in obj) {
-            // Check for image keys with large string values
-            if ((k === 'imageUrl' || k === 'photoURL' || k === 'image' || k === 'preview') && typeof obj[k] === 'string' && obj[k].length > 500) {
-              newObj[k] = null; // Remove image data
-            } else if (typeof obj[k] === 'string' && obj[k].startsWith('data:image')) {
-               newObj[k] = null;
-            } else {
-              newObj[k] = stripImages(obj[k]);
-            }
-          }
-          return newObj;
-        }
-        return obj;
-      };
-
-      const cleanData = stripImages(data);
-      
-      try {
-        localStorage.setItem(key, JSON.stringify(cleanData));
-        console.log("Saved data with images removed to save space.");
-      } catch (retryError) {
-        console.error("Still failed to save to LocalStorage even after stripping images.", retryError);
-      }
-    } else {
-      console.error("LocalStorage error:", e);
+      console.warn("LocalStorage quota exceeded.");
     }
   }
 };
@@ -63,8 +46,21 @@ const safeSetItem = (key: string, data: any) => {
 
 export const subscribeToAuth = (callback: (user: User | null) => void) => {
   if (auth) {
-    return () => {};
+    return onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        callback({
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName,
+          email: firebaseUser.email,
+          photoURL: firebaseUser.photoURL,
+          emailVerified: firebaseUser.emailVerified
+        });
+      } else {
+        callback(null);
+      }
+    });
   } else {
+    // Demo Mode
     const storedUser = localStorage.getItem('demo_user');
     if (storedUser) {
       callback(JSON.parse(storedUser) as User);
@@ -77,8 +73,15 @@ export const subscribeToAuth = (callback: (user: User | null) => void) => {
 
 export const signInWithGoogle = async () => {
   if (auth) {
-    // Unreachable in this mock version
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Error signing in with Google", error);
+      throw error;
+    }
   } else {
+    // Demo Mode
     const demoUser: User = {
       uid: 'demo-user-123',
       displayName: 'Demo Gardener',
@@ -93,7 +96,7 @@ export const signInWithGoogle = async () => {
 
 export const logout = async () => {
   if (auth) {
-    // Unreachable
+    await signOut(auth);
   } else {
     localStorage.removeItem('demo_user');
     window.location.reload();
@@ -104,31 +107,30 @@ export const logout = async () => {
 
 export const subscribeToChat = (roomId: string, callback: (messages: ChatMessage[]) => void) => {
   if (db) {
-     return () => {};
+     const q = query(collection(db, "chats", roomId, "messages"), orderBy("timestamp", "asc"));
+     return onSnapshot(q, (snapshot) => {
+       const msgs = snapshot.docs.map(doc => ({
+         id: doc.id,
+         ...doc.data(),
+         timestamp: doc.data().timestamp?.toDate() || new Date()
+       })) as ChatMessage[];
+       callback(msgs);
+     });
   } else {
+    // Demo Mode logic...
     const loadMock = () => {
       const mockKey = `demo_chat_${roomId}`;
       const stored = localStorage.getItem(mockKey);
       let msgs: ChatMessage[] = [];
-      
       if (stored) {
         msgs = JSON.parse(stored).map((m: any) => ({...m, timestamp: new Date(m.timestamp)}));
       } else {
-        msgs = [
-          {
-            id: '1',
-            text: `Welcome to the ${roomId} group! Any tips for aphids?`,
-            userId: 'bot',
-            userName: 'GardenBot',
-            userLevel: 'Master Gardener',
-            timestamp: new Date(Date.now() - 86400000)
-          }
-        ];
-        safeSetItem(mockKey, msgs);
+        msgs = [{
+            id: '1', text: `Welcome to the ${roomId} group!`, userId: 'bot', userName: 'GardenBot', userLevel: 'Master Gardener', timestamp: new Date()
+        }];
       }
       callback(msgs);
     };
-    
     loadMock();
     const interval = setInterval(loadMock, 2000); 
     return () => clearInterval(interval);
@@ -136,22 +138,19 @@ export const subscribeToChat = (roomId: string, callback: (messages: ChatMessage
 };
 
 export const sendMessage = async (roomId: string, text: string, user: User) => {
-  const msg = {
-    text,
-    userId: user.uid,
-    userName: user.displayName || "Anonymous",
-    userLevel: "Apprentice", 
-    timestamp: new Date()
-  };
-
   if (db) {
-    // Unreachable
+    await addDoc(collection(db, "chats", roomId, "messages"), {
+      text,
+      userId: user.uid,
+      userName: user.displayName || "Anonymous",
+      userLevel: "Gardener",
+      timestamp: new Date()
+    });
   } else {
     const mockKey = `demo_chat_${roomId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
     const newMsg = {
-      ...msg,
-      id: generateId(),
+      id: generateId(), text, userId: user.uid, userName: user.displayName || "Anonymous", userLevel: "Apprentice", timestamp: new Date()
     };
     safeSetItem(mockKey, [...stored, newMsg]);
   }
@@ -161,36 +160,39 @@ export const sendMessage = async (roomId: string, text: string, user: User) => {
 
 export const addPlant = async (userId: string, plant: Omit<Plant, 'id'>) => {
   if (db) {
-    // Unreachable
+    // Create new doc ref to get ID
+    const docRef = await addDoc(collection(db, "users", userId, "plants"), {
+      ...plant,
+      plantedDate: plant.plantedDate.toISOString() // Firestore prefers ISO or Timestamp
+    });
+    return docRef.id;
   } else {
     const mockKey = `demo_plants_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
     const newPlant = { ...plant, id: generateId() };
     safeSetItem(mockKey, [...stored, newPlant]);
+    return newPlant.id;
   }
 };
 
 export const updatePlantStatus = async (userId: string, plantId: string, isPlanted: boolean) => {
   if (db) {
-    // Unreachable
+    const plantRef = doc(db, "users", userId, "plants", plantId);
+    await updateDoc(plantRef, { isPlanted });
   } else {
     const mockKey = `demo_plants_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
-    const updated = stored.map((p: any) => {
-      if (p.id === plantId) return { ...p, isPlanted };
-      return p;
-    });
+    const updated = stored.map((p: any) => p.id === plantId ? { ...p, isPlanted } : p);
     safeSetItem(mockKey, updated);
   }
 };
 
 export const deletePlant = async (userId: string, plantId: string) => {
   if (db) {
-    // Unreachable
+    await deleteDoc(doc(db, "users", userId, "plants", plantId));
   } else {
     const mockKey = `demo_plants_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
-    // Ensure we filter out the specific ID
     const filtered = stored.filter((p: any) => p.id !== plantId);
     safeSetItem(mockKey, filtered);
   }
@@ -198,28 +200,17 @@ export const deletePlant = async (userId: string, plantId: string) => {
 
 export const getPlants = async (userId: string): Promise<Plant[]> => {
   if (db) {
-    return [];
+    const q = query(collection(db, "users", userId, "plants"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      plantedDate: new Date(doc.data().plantedDate)
+    })) as Plant[];
   } else {
     const mockKey = `demo_plants_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
-    
-    // AUTO-REPAIR: Check for missing IDs in legacy data and fix them on the fly
-    let dataWasRepaired = false;
-    const plants = stored.map((p: any) => {
-       if (!p.id) {
-           p.id = generateId(); // Assign a new ID if missing
-           dataWasRepaired = true;
-       }
-       return { ...p, plantedDate: new Date(p.plantedDate) };
-    });
-
-    // Save repair immediately
-    if (dataWasRepaired) {
-        console.log("Repaired database: Assigned missing IDs to plants.");
-        safeSetItem(mockKey, plants);
-    }
-
-    return plants;
+    return stored.map((p: any) => ({ ...p, plantedDate: new Date(p.plantedDate) }));
   }
 };
 
@@ -227,7 +218,10 @@ export const getPlants = async (userId: string): Promise<Plant[]> => {
 
 export const addHarvest = async (userId: string, harvest: Omit<HarvestLog, 'id'>) => {
   if (db) {
-    // Unreachable
+    await addDoc(collection(db, "users", userId, "harvests"), {
+      ...harvest,
+      date: harvest.date.toISOString()
+    });
   } else {
     const mockKey = `demo_harvests_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
@@ -238,7 +232,13 @@ export const addHarvest = async (userId: string, harvest: Omit<HarvestLog, 'id'>
 
 export const getHarvests = async (userId: string): Promise<HarvestLog[]> => {
   if (db) {
-    return [];
+    const q = query(collection(db, "users", userId, "harvests"), orderBy("date", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      date: new Date(doc.data().date)
+    })) as HarvestLog[];
   } else {
     const mockKey = `demo_harvests_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
@@ -250,18 +250,18 @@ export const getHarvests = async (userId: string): Promise<HarvestLog[]> => {
 
 export const savePlantingPlanToDb = async (userId: string, plan: PlantingPlanResponse, name: string): Promise<string> => {
   if (db) {
-     return "";
+    const docRef = await addDoc(collection(db, "users", userId, "plans"), {
+      userId,
+      name,
+      data: plan,
+      createdAt: new Date().toISOString()
+    });
+    return docRef.id;
   } else {
     const mockKey = `demo_plans_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
     const newId = generateId();
-    const newPlan: SavedPlan = { 
-      id: newId, 
-      userId, 
-      name, 
-      data: plan, 
-      createdAt: new Date() 
-    };
+    const newPlan: SavedPlan = { id: newId, userId, name, data: plan, createdAt: new Date() };
     safeSetItem(mockKey, [...stored, newPlan]);
     return newId;
   }
@@ -269,7 +269,13 @@ export const savePlantingPlanToDb = async (userId: string, plan: PlantingPlanRes
 
 export const getUserPlans = async (userId: string): Promise<SavedPlan[]> => {
   if (db) {
-    return [];
+    const q = query(collection(db, "users", userId, "plans"), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: new Date(doc.data().createdAt)
+    })) as SavedPlan[];
   } else {
     const mockKey = `demo_plans_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');

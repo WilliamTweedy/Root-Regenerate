@@ -1,6 +1,7 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse, PlantIdentificationResult, PlantHealthResult, RecipeResult } from "../types";
+import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse, PlantIdentificationResult, PlantHealthResult, RecipeResult, GapFillerInputs, GapFillerResult } from "../types";
 
 // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
 const apiKey = process.env.API_KEY;
@@ -355,5 +356,66 @@ export const generateGardenRecipe = async (ingredients: string[]): Promise<Recip
   } catch (error) {
      console.error("Recipe gen error:", error);
      throw new Error("Failed to create recipe.");
+  }
+};
+
+export const generateGapFillerRecommendation = async (inputs: GapFillerInputs, inventory: string[]): Promise<GapFillerResult> => {
+  if (!ai || !apiKey) {
+    throw new Error("API Key is missing.");
+  }
+
+  try {
+    const inventoryText = inputs.useInventory && inventory.length > 0 
+      ? `The user ONLY wants to use plants from this seed inventory: ${inventory.join(", ")}. Do not recommend anything else unless absolutely nothing fits.` 
+      : "The user is open to buying new seeds, but prioritizes common accessible plants.";
+
+    // Get current date string (e.g., "November 2024")
+    const currentDate = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const prompt = `
+      You are an expert in Companion Planting and Intercropping.
+      The user has a gap in their garden bed and needs a recommendation on what to plant **RIGHT NOW**.
+      
+      CRITICAL CONTEXT:
+      - Current Date: ${currentDate}
+      - User Location: ${inputs.location}
+      - Gap Size: ${inputs.gapSize}
+      - Surrounding Plants: ${inputs.surroundingPlants}
+      - Primary Goal: ${inputs.goal}
+      - ${inventoryText}
+      
+      Instructions:
+      1. Analyze the current date and user location to determine the season.
+      2. Recommend ONE single best plant species that can be sown or planted **immediately** in this specific season/climate. Do NOT recommend plants that are out of season (e.g. do not recommend warm-season crops like tomatoes if it is November in the Northern Hemisphere).
+      3. Explain the companion planting benefits regarding the surrounding plants (allelopathy, nutrient sharing, pest confusion).
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        temperature: 0.5,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            recommendedPlant: { type: Type.STRING },
+            reasoning: { type: Type.STRING, description: "Why this fits the gap size, goal, and CURRENT SEASON." },
+            plantingInstructions: { type: Type.STRING, description: "Brief sowing depth and spacing instructions" },
+            companionBenefits: { type: Type.STRING, description: "Specific interaction with surrounding plants" },
+            isFromInventory: { type: Type.BOOLEAN, description: "True if the recommended plant was in the provided inventory list" }
+          }
+        }
+      }
+    });
+
+    let text = response.text;
+    if (!text) throw new Error("No response from AI");
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(text) as GapFillerResult;
+  } catch (error) {
+    console.error("Gap Filler error:", error);
+    throw new Error("Failed to generate recommendation.");
   }
 };

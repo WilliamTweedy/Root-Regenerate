@@ -13,6 +13,7 @@ import ToolsHub from './components/ToolsHub';
 import Questionnaire from './components/Questionnaire';
 import PlantingWizard from './components/PlantingWizard';
 import PlantDoctor from './components/PlantDoctor';
+import GapFiller from './components/GapFiller';
 import Loading from './components/Loading';
 import Results from './components/Results';
 import PlantingPlanResults from './components/PlantingPlanResults';
@@ -26,7 +27,7 @@ function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Tools Tab State
-  const [toolState, setToolState] = useState<'hub' | 'soil' | 'planner' | 'doctor'>('hub');
+  const [toolState, setToolState] = useState<'hub' | 'soil' | 'planner' | 'doctor' | 'gap_filler'>('hub');
   const [diagnosisData, setDiagnosisData] = useState<DiagnosisResponse | null>(null);
   const [planData, setPlanData] = useState<PlantingPlanResponse | null>(null);
   const [isToolLoading, setIsToolLoading] = useState(false);
@@ -182,6 +183,10 @@ function App() {
 
     if (toolState === 'doctor') {
        return <PlantDoctor onBack={resetTools} />;
+    }
+
+    if (toolState === 'gap_filler') {
+       return <GapFiller user={user} onBack={resetTools} />;
     }
 
     return <ToolsHub onSelectTool={setToolState} />;

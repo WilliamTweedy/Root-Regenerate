@@ -1,4 +1,5 @@
 
+
 export interface UserProfile {
   uid: string;
   displayName: string | null;
@@ -136,6 +137,23 @@ export interface PlantHealthResult {
   organicCure: string;
   prevention: string;
   isHealthy: boolean;
+}
+
+// Gap Filler Types
+export interface GapFillerInputs {
+  gapSize: string; // e.g. "30cm x 30cm"
+  surroundingPlants: string; // e.g. "Tomatoes, Basil"
+  goal: 'Food' | 'Soil Regeneration';
+  useInventory: boolean;
+  location: string;
+}
+
+export interface GapFillerResult {
+  recommendedPlant: string;
+  reasoning: string;
+  plantingInstructions: string;
+  companionBenefits: string;
+  isFromInventory: boolean;
 }
 
 // Recipe Types

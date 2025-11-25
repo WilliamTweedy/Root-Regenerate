@@ -314,15 +314,38 @@ export const diagnosePlantHealth = async (image: { base64: string, mimeType: str
   }
 };
 
-export const generateGardenRecipe = async (ingredients: string[]): Promise<RecipeResult> => {
+export const generateGardenRecipe = async (
+  harvestIngredients: string[], 
+  pantryIngredients: string, 
+  creativityLevel: number, // 1 = Strict, 2 = Balanced, 3 = Creative
+  growingIngredients: string[] = []
+): Promise<RecipeResult> => {
    if (!ai || !apiKey) {
     throw new Error("API Key is missing.");
   }
 
   try {
+    let creativityInstruction = "";
+    if (creativityLevel === 1) {
+      creativityInstruction = "STRICT MODE: Use ONLY the provided ingredients plus basic staples (oil, salt, pepper, flour). Do not suggest buying new items.";
+    } else if (creativityLevel === 2) {
+      creativityInstruction = "BALANCED MODE: You may suggest 1 or 2 common extra ingredients to bind the dish together, but focus on the provided list.";
+    } else {
+      creativityInstruction = "CREATIVE MODE: Create the best possible dish. You can suggest buying other ingredients to complement the garden produce.";
+    }
+
+    const growingText = growingIngredients.length > 0 
+      ? `The user also has these plants growing in the garden which can be harvested fresh if needed (herbs, leafy greens, etc): ${growingIngredients.join(", ")}.` 
+      : "";
+
     const prompt = `
-      Create a delicious, rustic, home-cooked recipe using these garden ingredients: ${ingredients.join(", ")}.
-      You can assume the user has basic pantry staples (oil, salt, pepper, flour, etc.).
+      Create a delicious, rustic, home-cooked recipe.
+      
+      **Primary Garden Harvest:** ${harvestIngredients.join(", ")}.
+      **Kitchen Pantry Items:** ${pantryIngredients || "None specific"}.
+      ${growingText}
+      
+      **Instruction:** ${creativityInstruction}
       
       Focus on highlighting the fresh produce.
     `;
@@ -331,7 +354,7 @@ export const generateGardenRecipe = async (ingredients: string[]): Promise<Recip
       model: MODEL_NAME,
       contents: prompt,
       config: {
-        temperature: 0.7,
+        temperature: creativityLevel === 1 ? 0.3 : 0.8,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,

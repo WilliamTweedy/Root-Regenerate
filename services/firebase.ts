@@ -242,6 +242,17 @@ export const addHarvest = async (userId: string, harvest: Omit<HarvestLog, 'id'>
   }
 };
 
+export const deleteHarvest = async (userId: string, harvestId: string) => {
+  if (db) {
+    await deleteDoc(doc(db, "users", userId, "harvests", harvestId));
+  } else {
+    const mockKey = `demo_harvests_${userId}`;
+    const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
+    const filtered = stored.filter((h: any) => h.id !== harvestId);
+    safeSetItem(mockKey, filtered);
+  }
+};
+
 export const getHarvests = async (userId: string): Promise<HarvestLog[]> => {
   if (db) {
     const q = query(collection(db, "users", userId, "harvests"), orderBy("date", "desc"));

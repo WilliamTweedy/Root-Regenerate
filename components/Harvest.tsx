@@ -1,9 +1,10 @@
 
+
 import React, { useEffect, useState } from 'react';
-import { User, getHarvests, addHarvest } from '../services/firebase';
+import { User, getHarvests, addHarvest, deleteHarvest, getPlants } from '../services/firebase';
 import { generateGardenRecipe } from '../services/geminiService';
 import { HarvestLog, RecipeResult } from '../types';
-import { Sprout, Scale, Star, Plus, Calendar, ChefHat, Check, X, Clock, Utensils } from 'lucide-react';
+import { Sprout, Scale, Star, Plus, Calendar, ChefHat, Check, X, Clock, Utensils, Trash2, Sliders, ShoppingBasket, Vegan } from 'lucide-react';
 import Button from './Button';
 
 interface HarvestProps {
@@ -20,6 +21,12 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
   const [recipe, setRecipe] = useState<RecipeResult | null>(null);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
 
+  // New Recipe Features
+  const [pantryInput, setPantryInput] = useState('');
+  const [creativityLevel, setCreativityLevel] = useState(2); // 1-3
+  const [includeGrowing, setIncludeGrowing] = useState(false);
+  const [growingPlants, setGrowingPlants] = useState<string[]>([]);
+
   // Form State
   const [formCrop, setFormCrop] = useState('');
   const [formWeight, setFormWeight] = useState('');
@@ -28,6 +35,26 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
   useEffect(() => {
     loadHarvests();
   }, [user]);
+
+  // Load growing plants if toggle is active
+  useEffect(() => {
+    if (includeGrowing && isRecipeMode) {
+        const loadGrowing = async () => {
+            try {
+                const plants = await getPlants(user.uid);
+                // Filter for plants that are currently "In Ground"
+                const inGround = plants
+                    .filter(p => p.isPlanted)
+                    .map(p => p.name);
+                // Unique names
+                setGrowingPlants(Array.from(new Set(inGround)));
+            } catch (e) {
+                console.error("Failed to load growing plants", e);
+            }
+        };
+        loadGrowing();
+    }
+  }, [includeGrowing, isRecipeMode, user]);
 
   const loadHarvests = async () => {
     const data = await getHarvests(user.uid);
@@ -48,6 +75,14 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
     loadHarvests();
   };
 
+  const handleDeleteHarvest = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this harvest entry?")) {
+        await deleteHarvest(user.uid, id);
+        loadHarvests();
+    }
+  };
+
   const toggleIngredient = (cropName: string) => {
     if (selectedIngredients.includes(cropName)) {
       setSelectedIngredients(prev => prev.filter(i => i !== cropName));
@@ -60,7 +95,12 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
     if (selectedIngredients.length === 0) return;
     setIsGeneratingRecipe(true);
     try {
-      const result = await generateGardenRecipe(selectedIngredients);
+      const result = await generateGardenRecipe(
+          selectedIngredients, 
+          pantryInput, 
+          creativityLevel, 
+          includeGrowing ? growingPlants : []
+      );
       setRecipe(result);
     } catch (e) {
       alert("Failed to create recipe. Try again.");
@@ -149,7 +189,13 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
          </div>
          {harvests.length > 0 && !showForm && (
             <button 
-              onClick={() => { setIsRecipeMode(!isRecipeMode); setSelectedIngredients([]); }}
+              onClick={() => { 
+                  setIsRecipeMode(!isRecipeMode); 
+                  setSelectedIngredients([]); 
+                  setPantryInput('');
+                  setIncludeGrowing(false);
+                  setCreativityLevel(2);
+              }}
               className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1 ${
                  isRecipeMode 
                  ? 'bg-terra-50 text-terra-700 border-terra-200' 
@@ -173,7 +219,7 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
          </div>
       )}
 
-      {/* Add Harvest Button */}
+      {/* Add Harvest Button (Hidden in Recipe Mode) */}
       {!showForm && !isRecipeMode && (
         <button 
           onClick={() => setShowForm(true)}
@@ -184,24 +230,84 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
         </button>
       )}
 
-      {/* Recipe Selection Header */}
+      {/* Recipe Controls */}
       {isRecipeMode && (
-         <div className="mb-4 bg-terra-50 p-4 rounded-xl border border-terra-100 sticky top-4 z-20 shadow-sm animate-fade-in">
-             <div className="flex justify-between items-center mb-2">
-                 <span className="font-bold text-terra-900 text-sm">Select Ingredients</span>
+         <div className="mb-4 bg-white rounded-xl border border-terra-200 sticky top-4 z-20 shadow-lg overflow-hidden animate-fade-in">
+             <div className="bg-terra-50 p-4 border-b border-terra-100 flex justify-between items-center">
+                 <h3 className="font-bold text-terra-900 flex items-center gap-2">
+                     <ChefHat className="w-5 h-5" /> Kitchen Setup
+                 </h3>
                  <span className="text-xs bg-white px-2 py-0.5 rounded-full text-terra-700 font-bold shadow-sm">
-                    {selectedIngredients.length} Selected
+                    {selectedIngredients.length} Garden Items
                  </span>
              </div>
-             <p className="text-xs text-terra-700 mb-3">Tap items from your log below to add them to the chef's basket.</p>
-             <Button 
-               fullWidth 
-               onClick={handleGenerateRecipe} 
-               disabled={selectedIngredients.length === 0}
-               className="text-sm py-2"
-             >
-                Generate Recipe
-             </Button>
+             
+             <div className="p-4 space-y-4">
+                 {/* Pantry Input */}
+                 <div>
+                    <label className="block text-xs font-bold text-terra-800 uppercase mb-1 flex items-center gap-1">
+                        <ShoppingBasket className="w-3 h-3" /> Pantry Staples (Meat, Pasta, etc)
+                    </label>
+                    <textarea 
+                        className="w-full bg-terra-50/50 border border-terra-100 rounded-lg p-3 text-sm focus:border-terra-400 outline-none resize-none h-20"
+                        placeholder="e.g. Chicken breast, rice, lemon..."
+                        value={pantryInput}
+                        onChange={(e) => setPantryInput(e.target.value)}
+                    />
+                 </div>
+
+                 {/* Creativity Slider */}
+                 <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="text-xs font-bold text-terra-800 uppercase flex items-center gap-1">
+                            <Sliders className="w-3 h-3" /> Creativity
+                        </label>
+                        <span className="text-xs font-bold text-terra-600">
+                            {creativityLevel === 1 ? 'Pantry Raid (Strict)' : creativityLevel === 2 ? 'Balanced' : 'Gourmet Shopping'}
+                        </span>
+                    </div>
+                    <input 
+                        type="range" 
+                        min="1" 
+                        max="3" 
+                        step="1"
+                        value={creativityLevel}
+                        onChange={(e) => setCreativityLevel(parseInt(e.target.value))}
+                        className="w-full accent-terra-500 h-2 bg-terra-100 rounded-lg appearance-none cursor-pointer"
+                    />
+                 </div>
+
+                 {/* Growing Toggle */}
+                 <div className="flex items-center gap-3 bg-terra-50/50 p-3 rounded-lg border border-terra-100">
+                     <button 
+                        onClick={() => setIncludeGrowing(!includeGrowing)}
+                        className={`w-10 h-6 rounded-full p-1 transition-colors ${includeGrowing ? 'bg-terra-500' : 'bg-gray-300'}`}
+                     >
+                         <div className={`w-4 h-4 bg-white rounded-full transition-transform ${includeGrowing ? 'translate-x-4' : ''}`}></div>
+                     </button>
+                     <div className="flex-1">
+                         <span className="text-sm font-bold text-terra-900 flex items-center gap-1">
+                             <Vegan className="w-3 h-3" /> Shop the Garden
+                         </span>
+                         <p className="text-[10px] text-terra-600 leading-tight">
+                             Include unharvested plants from your garden inventory.
+                         </p>
+                     </div>
+                 </div>
+
+                 <Button 
+                   fullWidth 
+                   onClick={handleGenerateRecipe} 
+                   disabled={selectedIngredients.length === 0}
+                   className="text-sm py-3 shadow-md"
+                 >
+                    Generate Recipe
+                 </Button>
+             </div>
+             
+             <div className="bg-terra-50/50 p-2 text-center border-t border-terra-100">
+                 <p className="text-[10px] text-terra-500 font-medium">Select items from your harvest log below ↓</p>
+             </div>
          </div>
       )}
 
@@ -264,30 +370,42 @@ const Harvest: React.FC<HarvestProps> = ({ user }) => {
                key={harvest.id} 
                onClick={() => isRecipeMode && toggleIngredient(harvest.cropName)}
                className={`
-                  bg-white rounded-2xl p-4 flex items-center gap-4 border transition-all
+                  bg-white rounded-2xl p-4 border transition-all relative group
                   ${isRecipeMode 
-                     ? (isSelected ? 'border-terra-500 ring-1 ring-terra-500 bg-terra-50 cursor-pointer' : 'border-sage-100 opacity-60 cursor-pointer hover:opacity-100') 
+                     ? (isSelected ? 'border-terra-500 ring-1 ring-terra-500 bg-terra-50 cursor-pointer' : 'border-sage-100 opacity-80 cursor-pointer hover:opacity-100') 
                      : 'border-sage-100 shadow-sm'
                   }
                `}
             >
-               <div className={`w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'bg-terra-200 text-terra-700' : 'bg-sage-100 text-sage-400'}`}>
-                  {isRecipeMode && isSelected ? <Check className="w-8 h-8" /> : <Sprout className="w-8 h-8" />}
+               <div className="flex items-center gap-4">
+                   <div className={`w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'bg-terra-200 text-terra-700' : 'bg-sage-100 text-sage-400'}`}>
+                      {isRecipeMode && isSelected ? <Check className="w-8 h-8" /> : <Sprout className="w-8 h-8" />}
+                   </div>
+                   <div className="flex-grow">
+                      <div className="flex justify-between items-start">
+                         <h4 className="font-bold text-sage-900 text-lg">{harvest.cropName}</h4>
+                         {!isRecipeMode && (
+                            <div className="flex text-yellow-400">
+                               {[...Array(harvest.rating)].map((_, i) => <Star key={i} className="w-3 h-3 fill-current" />)}
+                            </div>
+                         )}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-sage-500 mt-1">
+                         <span className="flex items-center gap-1"><Scale className="w-3 h-3" /> {harvest.weightKg}kg</span>
+                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {harvest.date.toLocaleDateString()}</span>
+                      </div>
+                   </div>
                </div>
-               <div className="flex-grow">
-                  <div className="flex justify-between items-start">
-                     <h4 className="font-bold text-sage-900 text-lg">{harvest.cropName}</h4>
-                     {!isRecipeMode && (
-                        <div className="flex text-yellow-400">
-                           {[...Array(harvest.rating)].map((_, i) => <Star key={i} className="w-3 h-3 fill-current" />)}
-                        </div>
-                     )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-sage-500 mt-1">
-                     <span className="flex items-center gap-1"><Scale className="w-3 h-3" /> {harvest.weightKg}kg</span>
-                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {harvest.date.toLocaleDateString()}</span>
-                  </div>
-               </div>
+
+               {/* Delete Button (Only visible when NOT in recipe mode) */}
+               {!isRecipeMode && (
+                   <button 
+                      onClick={(e) => handleDeleteHarvest(harvest.id, e)}
+                      className="absolute top-4 right-4 p-2 text-sage-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                   >
+                       <Trash2 className="w-4 h-4" />
+                   </button>
+               )}
             </div>
          )})}
          {harvests.length === 0 && !showForm && (

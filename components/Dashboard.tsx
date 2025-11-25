@@ -1,10 +1,10 @@
-
 import React, { useEffect, useState } from 'react';
 import { User, getPlants, updatePlantStatus, deletePlant } from '../services/firebase';
 import { getWeather } from '../services/weatherService';
 import { Plant, WeatherData } from '../types';
 import { CloudRain, ThermometerSnowflake, Bell, Plus, Sprout, CheckSquare, Square, Trash2, Calendar, Flower2, Search } from 'lucide-react';
 import Button from './Button';
+import AccountModal from './AccountModal';
 
 interface DashboardProps {
   user: User;
@@ -16,6 +16,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'planted' | 'seeds'>('all');
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -79,9 +80,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
              <Button onClick={() => onNavigate('scan')} className="flex-1 sm:flex-none text-sm px-4 py-2 h-auto shadow-md">
                 <Plus className="w-4 h-4 mr-2" /> Add Seeds
              </Button>
-             <div className="w-10 h-10 rounded-full bg-sage-200 overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
+             <button 
+                onClick={() => setShowAccountModal(true)}
+                className="w-10 h-10 rounded-full bg-sage-200 overflow-hidden border-2 border-white shadow-sm flex-shrink-0 hover:ring-2 hover:ring-leaf-400 transition-all cursor-pointer"
+                title="Manage Account"
+             >
                <img src={user.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Gardener'} alt="Profile" className="w-full h-full object-cover" />
-             </div>
+             </button>
         </div>
       </div>
 
@@ -233,6 +238,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           })
         )}
       </div>
+
+      {showAccountModal && (
+        <AccountModal 
+          user={user} 
+          onClose={() => setShowAccountModal(false)} 
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser, deleteUser } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { Plant, ChatMessage, HarvestLog, PlantingPlanResponse, SavedPlan } from "../types";
 
@@ -10,6 +10,10 @@ export interface User {
   email: string | null;
   photoURL: string | null;
   emailVerified: boolean;
+  metadata?: {
+    creationTime?: string;
+    lastSignInTime?: string;
+  };
 }
 
 // --- Configuration ---
@@ -53,7 +57,11 @@ export const subscribeToAuth = (callback: (user: User | null) => void) => {
           displayName: firebaseUser.displayName,
           email: firebaseUser.email,
           photoURL: firebaseUser.photoURL,
-          emailVerified: firebaseUser.emailVerified
+          emailVerified: firebaseUser.emailVerified,
+          metadata: {
+            creationTime: firebaseUser.metadata.creationTime,
+            lastSignInTime: firebaseUser.metadata.lastSignInTime,
+          }
         });
       } else {
         callback(null);
@@ -88,6 +96,10 @@ export const signInWithGoogle = async () => {
       email: 'gardener@example.com',
       photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Gardener',
       emailVerified: true,
+      metadata: {
+        creationTime: new Date().toUTCString(),
+        lastSignInTime: new Date().toUTCString(),
+      }
     };
     safeSetItem('demo_user', demoUser);
     window.location.reload(); 
@@ -280,5 +292,41 @@ export const getUserPlans = async (userId: string): Promise<SavedPlan[]> => {
     const mockKey = `demo_plans_${userId}`;
     const stored = JSON.parse(localStorage.getItem(mockKey) || '[]');
     return stored.map((p: any) => ({ ...p, createdAt: new Date(p.createdAt) }));
+  }
+};
+
+// --- Account Management ---
+
+export const deleteUserAccount = async (userId: string) => {
+  try {
+    if (db) {
+      // 1. Delete Plants
+      const plants = await getPlants(userId);
+      for (const p of plants) await deleteDoc(doc(db, "users", userId, "plants", p.id));
+
+      // 2. Delete Harvests
+      const harvests = await getHarvests(userId);
+      for (const h of harvests) await deleteDoc(doc(db, "users", userId, "harvests", h.id));
+
+      // 3. Delete Plans
+      const plans = await getUserPlans(userId);
+      for (const p of plans) await deleteDoc(doc(db, "users", userId, "plans", p.id));
+      
+      // 4. Delete Auth
+      if (auth && auth.currentUser) {
+          await deleteUser(auth.currentUser);
+      }
+    } else {
+      // Demo Mode
+      localStorage.removeItem('demo_user');
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+            if(key.includes(userId)) localStorage.removeItem(key);
+      });
+      window.location.reload();
+    }
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    throw error;
   }
 };

@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse, PlantIdentificationResult } from "../types";
+import { SoilDiagnosisInputs, PlantingPlanInputs, PlantingPlanResponse, DiagnosisResponse, PlantIdentificationResult, PlantHealthResult, RecipeResult } from "../types";
 
 // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
 const apiKey = process.env.API_KEY;
@@ -250,5 +250,110 @@ export const generatePlantingPlan = async (inputs: PlantingPlanInputs): Promise<
   } catch (error) {
     console.error("Error generating planting plan:", error);
     throw new Error("Failed to generate planting plan.");
+  }
+};
+
+export const diagnosePlantHealth = async (image: { base64: string, mimeType: string }): Promise<PlantHealthResult> => {
+  if (!ai || !apiKey) {
+    throw new Error("API Key is missing.");
+  }
+
+  try {
+    const parts = [
+      {
+        inlineData: {
+          mimeType: image.mimeType,
+          data: image.base64
+        }
+      },
+      {
+        text: `Analyze this image of a plant. 
+        Identify if there are any diseases, pests, or nutrient deficiencies.
+        If the plant looks healthy, state that.
+        
+        Provide organic, chemical-free remedies consistent with organic gardening principles.
+        `
+      }
+    ];
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: { parts },
+      config: {
+        temperature: 0.4,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            diagnosis: { type: Type.STRING, description: "Name of the issue or 'Healthy'" },
+            confidence: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+            symptoms: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING },
+              description: "List of visual symptoms observed"
+            },
+            cause: { type: Type.STRING, description: "What caused this issue" },
+            organicCure: { type: Type.STRING, description: "Organic remedy instructions" },
+            prevention: { type: Type.STRING, description: "How to prevent this in future" },
+            isHealthy: { type: Type.BOOLEAN }
+          }
+        }
+      }
+    });
+
+    let text = response.text;
+    if (!text) throw new Error("No response from AI");
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(text) as PlantHealthResult;
+
+  } catch (error) {
+    console.error("Plant diagnosis error:", error);
+    throw new Error("Failed to diagnose plant.");
+  }
+};
+
+export const generateGardenRecipe = async (ingredients: string[]): Promise<RecipeResult> => {
+   if (!ai || !apiKey) {
+    throw new Error("API Key is missing.");
+  }
+
+  try {
+    const prompt = `
+      Create a delicious, rustic, home-cooked recipe using these garden ingredients: ${ingredients.join(", ")}.
+      You can assume the user has basic pantry staples (oil, salt, pepper, flour, etc.).
+      
+      Focus on highlighting the fresh produce.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            prepTime: { type: Type.STRING },
+            ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+            steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+            chefsNote: { type: Type.STRING, description: "A tip about the main ingredient" }
+          }
+        }
+      }
+    });
+
+    let text = response.text;
+    if (!text) throw new Error("No response from AI");
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(text) as RecipeResult;
+
+  } catch (error) {
+     console.error("Recipe gen error:", error);
+     throw new Error("Failed to create recipe.");
   }
 };

@@ -1,8 +1,9 @@
+
 import React from 'react';
-import { Shovel, Calendar, ArrowRight } from 'lucide-react';
+import { Shovel, Calendar, ArrowRight, Stethoscope } from 'lucide-react';
 
 interface ToolsHubProps {
-  onSelectTool: (tool: 'soil' | 'planner') => void;
+  onSelectTool: (tool: 'soil' | 'planner' | 'doctor') => void;
 }
 
 const ToolsHub: React.FC<ToolsHubProps> = ({ onSelectTool }) => {
@@ -12,6 +13,25 @@ const ToolsHub: React.FC<ToolsHubProps> = ({ onSelectTool }) => {
       <p className="text-sage-600 mb-8">Advanced utilities for the serious grower.</p>
 
       <div className="space-y-6">
+        {/* Plant Doctor Card */}
+        <button 
+          onClick={() => onSelectTool('doctor')}
+          className="w-full bg-white rounded-3xl p-6 shadow-sm border border-sage-200 text-left hover:shadow-md hover:border-terra-300 transition-all group"
+        >
+          <div className="flex justify-between items-start mb-4">
+            <div className="bg-red-50 text-red-600 p-4 rounded-2xl">
+              <Stethoscope className="w-8 h-8" />
+            </div>
+            <div className="bg-sage-50 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <ArrowRight className="w-5 h-5 text-sage-400" />
+            </div>
+          </div>
+          <h3 className="text-xl font-serif font-bold text-sage-900 mb-2">Plant Doctor</h3>
+          <p className="text-sage-600 text-sm leading-relaxed">
+            Spot a yellow leaf or strange bug? Snap a photo for an instant organic diagnosis and treatment plan.
+          </p>
+        </button>
+
         {/* Soil Doctor Card */}
         <button 
           onClick={() => onSelectTool('soil')}

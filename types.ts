@@ -127,6 +127,27 @@ export interface DiagnosisResponse {
   }[];
 }
 
+// Plant Doctor Types
+export interface PlantHealthResult {
+  diagnosis: string;
+  confidence: "High" | "Medium" | "Low";
+  symptoms: string[];
+  cause: string;
+  organicCure: string;
+  prevention: string;
+  isHealthy: boolean;
+}
+
+// Recipe Types
+export interface RecipeResult {
+  title: string;
+  description: string;
+  prepTime: string;
+  ingredients: string[];
+  steps: string[];
+  chefsNote: string;
+}
+
 // Planting Plan Types
 
 export interface PlantingPlanInputs {
